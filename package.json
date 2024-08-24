@@ -1,0 +1,46 @@
+{
+  "name": "@inctasoft/simple-log-ts",
+  "version": "4.4.1",
+  "description": "JSON log of objects, including Maps and Sets. Optional correlation_id",
+  "main": "dist/src/log.js",
+  "files": [
+    "./dist"
+  ],
+  "scripts": {
+    "prepare": "husky install",
+    "test": "jest",
+    "build": "tsc",
+    "commitlint": "commitlint -e"
+  },
+  "keywords": [
+    "JSON",
+    "log",
+    "logging",
+    "typescript",
+    "correlation",
+    "map",
+    "set"
+  ],
+  "author": "akrsmv",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/inctasoft/simple-log-ts.git"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.5",
+    "@types/node": "^20.8.2",
+    "cz-conventional-changelog": "^3.3.0",
+    "husky": "^8.0.3",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.2.2",
+    "@commitlint/cli": "^17.7.2",
+    "@commitlint/config-conventional": "^17.7.0"
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
+  }
+}

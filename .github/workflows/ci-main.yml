@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["main"]
+
+jobs:
+  build: 
+    uses: ./.github/workflows/step-build.yml
+  sonarcloud:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: sonarsource/sonarcloud-github-action@master
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        args:
+          # Unique keys of your project and organization. You can find them in SonarCloud > Information (bottom-left menu)
+          # mandatory
+          -Dsonar.projectKey=inctasoft_simple-log-ts
+          -Dsonar.organization=inctasoft
+          -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+          -Dsonar.typescript.tsconfigPaths=tsconfig.json
+          -Dsonar.sources=./src
+          -Dsonar.tests=./test
+  bump-version:
+    name: 'push to main: bump version'
+    if: ${{ github.ref_name == 'main' && github.event_name == 'push'}}
+    needs: build
+    permissions:
+      packages: write
+      contents: write
+    uses: ./.github/workflows/step-bump-version.yml
+    secrets: inherit
+  merge-in-dev:
+    if: ${{  github.ref_name == 'main' && github.event_name == 'push' }}
+    name: 'pull in dev branch'
+    needs: [build,bump-version]
+    permissions:
+      pull-requests: write
+    uses: ./.github/workflows/step-merge-in-dev.yml
+    secrets: inherit
+

@@ -1,0 +1,148 @@
+name: CI:Scan,Package
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: 'Build and Unit Test'
+    strategy:
+      matrix:
+        node-version: [18.x]
+        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+    - run: npm ci
+    - run: npm run build
+    - run: npm test
+    - uses: sonarsource/sonarcloud-github-action@master
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        args:
+          # Unique keys of your project and organization. You can find them in SonarCloud > Information (bottom-left menu)
+          # mandatory
+          -Dsonar.projectKey=inctasoft_simple-log-ts
+          -Dsonar.organization=inctasoft
+          -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+          -Dsonar.typescript.tsconfigPaths=tsconfig.json
+          -Dsonar.sources=src
+          -Dsonar.tests=test
+
+  # publishing to github only if pushing to main branch
+  publish-gpr:
+    if: ${{ github.ref_name == 'main' }}
+    needs: [bump-version]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: git pull
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+          registry-url: https://npm.pkg.github.com/
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm publish
+
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+
+  # publishing to npm only if pushing to main branch
+  publish-npm:
+    if: ${{ github.ref_name == 'main' }}
+    needs: [bump-version]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: git pull
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+          registry-url: https://registry.npmjs.org/
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm publish --access public
+
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+
+  # bump version only if pushing to main branch
+  bump-version:
+    if: ${{ github.ref_name == 'main' }}
+    needs: build
+    name: 'if main branch: Bump Version'
+    runs-on: ubuntu-latest
+    permissions:
+        packages: write
+        contents: write
+    steps:
+      - name: 'Checkout source code'
+        uses: 'actions/checkout@v4'
+        with:  
+          token: ${{ secrets.PAT_TOKEN_GHA_AUTH }}
+      - name: 'cat package.json'
+        run: cat ./package.json
+      - name: Get latest commit message
+        id: get-latest-commit-message
+        run: |
+          MSG=$(git log --pretty=format:%B -1 HEAD)
+          echo "::set-output name=message::$MSG"
+      - name: 'Automated Version Bump'
+        id: version-bump
+        uses: 'phips28/gh-action-bump-version@master'
+        with: 
+          tag-prefix: 'v'
+          commit-message: '[skip ci]:version bump to {{version}}:${{ steps.get-latest-commit-message.outputs.message }}'
+                                              # Using defaults from  https://github.com/phips28/gh-action-bump-version#workflow
+                                              # TODO consider commitizen to bump the package version
+        #   minor-wording:  'MINOR'
+        #   major-wording:  'MAJOR'
+        #   patch-wording:  'patch,fixes'     # Providing patch-wording will override commits
+        #                                     # defaulting to a patch bump.
+        #   rc-wording:     'RELEASE,alpha'
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN_GHA_AUTH }}
+          GITHUB_USER: akrsmv
+      - name: 'cat package.json'
+        run: cat ./package.json
+      - name: 'Output Step'
+        env:
+          NEW_TAG: ${{ steps.version-bump.outputs.newTag }}
+        run: echo "new tag $NEW_TAG"
+
+  # pulling merge comitts back in dev     
+  merge-in-dev:
+    if: ${{ github.ref_name != 'dev' }}
+    needs: [bump-version]
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+    - uses: actions/checkout@v4
+    - name: merge-in-dev
+      run: |
+        echo gh event is ${{ github.event_name}}
+        gh pr create  --title "CI: automerge dev <- ${{github.ref_name}} [skip ci]" --body "CI: Automatic PR bringing commits in ${{github.ref_name}} to dev [skip ci]" --base dev 
+        gh pr merge --admin --merge
+      env:
+        GH_TOKEN: ${{ secrets.PAT_TOKEN_GHA_AUTH }}

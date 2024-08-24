@@ -1,0 +1,42 @@
+name: Bump Package Version
+
+on:
+  workflow_call: 
+    secrets:
+      PAT_TOKEN_GHA_AUTH:
+        required: true
+
+jobs:
+  # bump version only if pushing to main branch
+  bump-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout source code'
+        uses: 'actions/checkout@v4'
+        with:  
+          token: ${{ secrets.PAT_TOKEN_GHA_AUTH }}
+      - name: 'cat package.json'
+        run: cat ./package.json
+      - name: 'Automated Version Bump'
+        id: version-bump
+        uses: 'phips28/gh-action-bump-version@master'
+        with: 
+          tag-prefix: 'v'
+          commit-message: 'version bump {{version}} [skip ci]'
+                                              # Using defaults from  https://github.com/phips28/gh-action-bump-version#workflow
+                                              # TODO consider commitizen to bump the package version
+        #   minor-wording:  'MINOR'
+        #   major-wording:  'MAJOR'
+        #   patch-wording:  'patch,fixes'     # Providing patch-wording will override commits
+        #                                     # defaulting to a patch bump.
+        #   rc-wording:     'RELEASE,alpha'
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN_GHA_AUTH }}
+          GITHUB_USER: akrsmv
+          LAST_COMMIT: ${{ steps.get-latest-commit-message.LAST_COMMIT }}
+      - name: 'cat package.json'
+        run: cat ./package.json
+      - name: 'Output Step'
+        env:
+          NEW_TAG: ${{ steps.version-bump.outputs.newTag }}
+        run: echo "new tag $NEW_TAG"
